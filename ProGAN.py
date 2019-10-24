@@ -357,7 +357,7 @@ class Trainer():
                             lr=self.learning_rate,
                             betas=self.betas)
         optimizer_D = Adam(discriminator.parameters(),
-                            lr=self.learning_rate*4, 
+                            lr=self.learning_rate, 
                             betas=self.betas)
 
         image_size = 2 ** (self.depth + 1)
@@ -379,6 +379,7 @@ class Trainer():
         logger = Logger()
         iterations = 0
         fixed_input = torch.randn(16, self.latent_dim).to(self.device)
+        fixed_input /= torch.sqrt(torch.sum(fixed_input*fixed_input + 1e-8, dim=1, keepdim=True))
 
         for current_depth in range(self.depth):
             current_res = 2 ** (current_depth + 1)
@@ -404,6 +405,7 @@ class Trainer():
                     images = batch.to(self.device)
 
                     gan_input = torch.randn(images.shape[0], self.latent_dim).to(self.device)
+                    gan_input /= torch.sqrt(torch.sum(gan_input*gan_input + 1e-8, dim=1, keepdim=True))
 
                     real_samples = progressive_downsampling(images, current_depth, self.depth, alpha)
                         # generate a batch of samples
@@ -418,6 +420,7 @@ class Trainer():
                     d_loss_val = d_loss.item()
 
                     gan_input = torch.randn(images.shape[0], self.latent_dim).to(self.device)
+                    gan_input /= torch.sqrt(torch.sum(gan_input*gan_input + 1e-8, dim=1, keepdim=True))
                     fake_samples = generator(gan_input, current_depth, alpha)
                     g_loss = loss.gen_loss(real_samples, fake_samples, current_depth, alpha)
                     
@@ -449,8 +452,8 @@ class Trainer():
                     sample_images = generator(fixed_input, current_depth, alpha)
                 save_samples(sample_images, current_depth, sample_dir, current_depth, epoch, image_size)
                 generator.train()
-        generator.to('cpu')
-        torch.save(generator.state_dict(), f"{checkpoint_dir}/generator.pth")
+                if current_depth == self.depth:
+                    torch.save(generator.state_dict(), f"{checkpoint_dir}/{current_depth}_{epoch}_generator.pth")
 
 
 def progressive_downsampling(real_batch, current_depth, depth, alpha):
@@ -483,7 +486,7 @@ def save_samples(image_tensor, current_depth, sample_dir, depth, epoch, image_si
         for j in range(4):
             result[i*image_size:(i+1)*image_size, j*image_size:(j+1)*image_size, :] = img[4*i+j, :, :, :]
     result = result.astype(np.uint8)
-    imsave(f"{sample_dir}{depth}_{epoch}.png", result)
+    imsave(f"{sample_dir}/{depth}_{epoch}.png", result)
 
 if __name__=="__main__":
     
